@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+  <title>AERO // JARVIS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+    html,body{width:100%;height:100%;background:#000;font-family:'Share Tech Mono',monospace;color:#d8b4fe;overflow:hidden;}
+
+    /* vignette */
+    body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:2;
+      background:radial-gradient(ellipse at center,transparent 38%,rgba(0,0,0,0.9) 100%);}
+
+    /* ── HEADER ── */
+    #hdr{
+      position:fixed;top:0;left:0;right:0;z-index:200;height:52px;
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 20px;background:rgba(0,0,0,0.8);
+      border-bottom:1px solid rgba(138,43,226,0.15);backdrop-filter:blur(12px);
+    }
+    #hdr-left{font-family:'Orbitron',sans-serif;font-weight:900;font-size:18px;
+      letter-spacing:5px;color:#fff;text-shadow:0 0 10px rgba(168,85,247,0.65);}
+    #hdr-left span{font-size:8px;color:#d946ef;border:1px solid rgba(217,70,239,0.4);
+      padding:2px 6px;border-radius:3px;margin-left:8px;letter-spacing:1px;vertical-align:middle;}
+    #hdr-right{display:flex;gap:14px;align-items:center;font-size:10px;}
+    #clock{color:#a855f7;}
+    #ollama-led{display:flex;align-items:center;gap:6px;padding:3px 9px;border-radius:4px;
+      border:1px solid rgba(138,43,226,0.18);background:rgba(138,43,226,0.04);}
+    #ollama-dot{width:6px;height:6px;border-radius:50%;background:#6b7280;box-shadow:0 0 4px #6b7280;transition:all .3s;}
+    #state-lbl{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:2px;color:#d946ef;}
+
+    /* ── WEBGL STAGE ── */
+    #stage{position:fixed;inset:0;z-index:1;touch-action:none;cursor:grab;}
+    #stage:active{cursor:grabbing;}
+
+    /* ── CHAT PANEL ── */
+    #chat-panel{
+      position:fixed;top:62px;right:16px;bottom:16px;width:400px;z-index:100;
+      display:flex;flex-direction:column;
+      background:rgba(0,0,0,0.58);
+      border:1px solid rgba(138,43,226,0.16);border-radius:12px;
+      backdrop-filter:blur(20px);
+      box-shadow:0 0 28px rgba(138,43,226,0.07),inset 0 0 18px rgba(138,43,226,0.02);
+      transition:border-color .3s,box-shadow .3s;
+    }
+    #chat-panel:hover{border-color:rgba(168,85,247,0.3);box-shadow:0 0 35px rgba(168,85,247,0.1);}
+
+    /* Mobile: panel becomes bottom sheet */
+    @media(max-width:700px){
+      #chat-panel{
+        left:0;right:0;bottom:0;top:auto;width:100%;
+        height:52%;border-radius:14px 14px 0 0;
+      }
+    }
+
+    #chat-panel-hdr{
+      padding:10px 15px;font-family:'Orbitron',sans-serif;font-size:8px;font-weight:700;
+      letter-spacing:2px;color:#fff;background:rgba(138,43,226,0.04);
+      border-bottom:1px solid rgba(138,43,226,0.1);border-radius:11px 11px 0 0;
+      display:flex;justify-content:space-between;align-items:center;
+    }
+    #log{flex:1;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;scrollbar-width:none;}
+    #log::-webkit-scrollbar{display:none;}
+
+    /* bubbles */
+    .bub{padding:10px 12px;border-radius:5px;max-width:93%;font-size:12px;line-height:1.6;
+      animation:fu .25s ease both;}
+    @keyframes fu{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+    .bub::before{display:block;font-size:8px;letter-spacing:2px;margin-bottom:3px;
+      font-family:'Orbitron',sans-serif;font-weight:700;}
+    .bub.user{align-self:flex-end;color:#fff;background:rgba(138,43,226,0.07);
+      border:1px solid rgba(138,43,226,0.15);border-right:3px solid #d946ef;}
+    .bub.user::before{content:'YOU //';color:#d946ef;}
+    .bub.ai{align-self:flex-start;color:#d8b4fe;background:rgba(217,70,239,0.02);
+      border:1px solid rgba(138,43,226,0.09);border-left:3px solid #8a2be2;}
+    .bub.ai::before{content:'AERO //';color:#a855f7;}
+    .bub.sys{align-self:center;max-width:100%;text-align:center;font-size:10px;
+      color:rgba(216,180,254,0.3);border:1px dashed rgba(216,180,254,0.06);border-radius:4px;}
+
+    /* thinking dots */
+    .think{display:flex;gap:5px;padding:10px 12px;align-self:flex-start;}
+    .think i{display:inline-block;width:5px;height:5px;border-radius:50%;background:#a855f7;
+      animation:td .8s infinite alternate;}
+    .think i:nth-child(2){animation-delay:.15s;}.think i:nth-child(3){animation-delay:.3s;}
+    @keyframes td{from{opacity:.2;transform:scale(.8)}to{opacity:1;transform:scale(1.2)}}
+
+    /* input */
+    #inp-row{padding:10px;border-top:1px solid rgba(138,43,226,0.12);display:flex;gap:6px;
+      background:rgba(0,0,0,0.35);border-radius:0 0 11px 11px;}
+    #txt{flex:1;background:rgba(138,43,226,0.04);border:1px solid rgba(138,43,226,0.18);
+      border-radius:5px;color:#fff;padding:9px 11px;font-family:'Share Tech Mono',monospace;
+      font-size:13px;outline:none;transition:all .2s;}
+    #txt:focus{border-color:#d946ef;box-shadow:0 0 8px rgba(217,70,239,0.1);}
+    #mic{width:38px;min-width:38px;background:rgba(138,43,226,0.08);border:1px solid rgba(138,43,226,0.16);
+      border-radius:5px;color:#d8b4fe;cursor:pointer;display:flex;align-items:center;justify-content:center;
+      transition:all .2s;-webkit-appearance:none;}
+    #mic:hover,#mic:active{background:#8a2be2;color:#fff;}
+    #mic.on{background:rgba(138,43,226,0.4);border-color:#a855f7;animation:mp 1s infinite alternate;}
+    @keyframes mp{0%{box-shadow:0 0 4px #8a2be2}100%{box-shadow:0 0 14px #a855f7}}
+    #send{background:#8a2be2;border:1px solid #a855f7;color:#fff;padding:0 16px;border-radius:5px;
+      cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;
+      transition:all .2s;white-space:nowrap;-webkit-appearance:none;}
+    #send:hover,#send:active{background:#d946ef;box-shadow:0 0 8px #d946ef;}
+
+    /* bottom hint */
+    #hint{position:fixed;bottom:18px;left:20px;z-index:9001;font-size:9px;
+      color:rgba(138,43,226,0.38);letter-spacing:1px;pointer-events:none;}
+    @media(max-width:700px){#hint{bottom:56%;font-size:8px;left:12px;}}
+
+    /* wave bars */
+    #waves{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+      z-index:9001;display:flex;gap:3px;align-items:flex-end;height:20px;pointer-events:none;}
+    @media(max-width:700px){#waves{bottom:calc(52% + 10px);}}
+    .wb{width:3px;height:3px;border-radius:2px;background:#8a2be2;box-shadow:0 0 3px #8a2be2;transition:height .1s;}
+
+    /* command reference button */
+    #cmd-btn{
+      position:fixed;bottom:18px;right:calc(400px + 32px);z-index:9001;
+      background:rgba(138,43,226,0.08);border:1px solid rgba(138,43,226,0.18);
+      color:#a855f7;border-radius:5px;padding:5px 10px;cursor:pointer;
+      font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:1px;
+      transition:all .2s;backdrop-filter:blur(8px);
+    }
+    #cmd-btn:hover{background:rgba(138,43,226,0.2);color:#fff;}
+    @media(max-width:700px){#cmd-btn{bottom:calc(52% + 8px);right:12px;}}
+
+    /* command drawer */
+    #cmd-drawer{
+      position:fixed;bottom:44px;right:calc(400px + 32px);z-index:9001;
+      width:220px;background:rgba(0,0,0,0.88);border:1px solid rgba(138,43,226,0.2);
+      border-radius:8px;backdrop-filter:blur(16px);padding:12px;
+      display:none;
+    }
+    #cmd-drawer.open{display:block;}
+    @media(max-width:700px){#cmd-drawer{bottom:calc(52% + 38px);right:12px;width:calc(100% - 24px);}}
+    #cmd-drawer h4{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:2px;color:#d946ef;margin-bottom:8px;}
+    #cmd-drawer ul{list-style:none;display:flex;flex-direction:column;gap:4px;}
+    #cmd-drawer li{font-size:10px;color:rgba(168,85,247,0.8);cursor:pointer;padding:3px 0;border-bottom:1px solid rgba(138,43,226,0.08);}
+    #cmd-drawer li:hover{color:#fff;}
+  </style>
+</head>
+<body>
+<div id="stage"></div>
+
+<div id="hdr">
+  <div id="hdr-left">AERO <span>JARVIS</span></div>
+  <div id="hdr-right">
+    <div id="ollama-led"><div id="ollama-dot"></div><span id="ollama-txt">LINKING...</span></div>
+    <span id="state-lbl">IDLE</span>
+    <span id="clock">00:00:00</span>
+  </div>
+</div>
+
+<button id="show-chat-btn" style="position:fixed;top:62px;right:16px;z-index:9002;display:none;background:rgba(0,0,0,0.8);border:1px solid rgba(138,43,226,0.4);border-radius:6px;color:#fff;padding:8px 12px;font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:2px;cursor:pointer;backdrop-filter:blur(8px);box-shadow:0 0 10px rgba(138,43,226,0.3);">SHOW CHAT</button>
+
+<div id="chat-panel">
+  <div id="chat-panel-hdr">
+    <span>COMM-LINK</span>
+    <span id="voice-status" style="font-size:9px;color:#6b7280;margin-left:auto;margin-right:12px;">INITIALIZING VOICE...</span>
+    <button id="hide-chat-btn" style="background:none;border:none;color:#d946ef;font-family:'Orbitron',sans-serif;font-size:9px;cursor:pointer;letter-spacing:1px;padding:2px 6px;outline:none;">[ HIDE ]</button>
+  </div>
+  <div id="log"><div class="bub sys">AERO ONLINE — DRAG TO ROTATE — SPACE OR TAP MIC = VOICE</div></div>
+  <div id="inp-row">
+    <button id="mic" title="Hold Space or tap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+      </svg>
+    </button>
+    <input id="txt" placeholder="Ask AERO anything…" autocomplete="off"/>
+    <button id="send">SEND</button>
+  </div>
+</div>
+
+<div id="waves">
+  <div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div>
+  <div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div>
+  <div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div>
+</div>
+
+<div id="hint">DRAG · SPACE = VOICE</div>
+
+<button id="cmd-btn" onclick="toggleDrawer()">COMMANDS</button>
+<div id="cmd-drawer">
+  <h4>QUICK COMMANDS</h4>
+  <ul>
+    <li onclick="sendQuick('What time is it?')">What time is it?</li>
+    <li onclick="sendQuick('What is today\'s date?')">Today's date</li>
+    <li onclick="sendQuick('Open calculator')">Open calculator</li>
+    <li onclick="sendQuick('Open calendar')">Open calendar</li>
+    <li onclick="sendQuick('Set alarm')">Set alarm</li>
+    <li onclick="sendQuick('Volume up')">Volume up</li>
+    <li onclick="sendQuick('Volume down')">Volume down</li>
+    <li onclick="sendQuick('Take a screenshot')">Screenshot</li>
+    <li onclick="sendQuick('Lock computer')">Lock computer</li>
+    <li onclick="sendQuick('Open settings')">Open settings</li>
+    <li onclick="sendQuick('Search web for news today')">Today's news</li>
+    <li onclick="sendQuick('What is my IP address?')">My IP address</li>
+  </ul>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* =====================================================================
+   3D HOLOGRAPHIC ORB — particles only, irregular glowing sphere
+   Full drag-to-rotate, touch support for mobile
+   ===================================================================== */
+const stage = document.getElementById('stage');
+let scene, camera, renderer, group, partMat;
+let t = 0, sysState = 'IDLE';
+
+// Drag/touch rotation
+let dragging = false, prevX = 0, prevY = 0;
+let rotY = 0, rotX = 0.25;
+let velY = 0.0025;
+let totalDragDist = 0;
+
+function onPointerDown(e) {
+  const x = e.touches ? e.touches[0].clientX : e.clientX;
+  const y = e.touches ? e.touches[0].clientY : e.clientY;
+  // only drag if outside the chat panel
+  const cp = document.getElementById('chat-panel').getBoundingClientRect();
+  const inPanel = x >= cp.left && x <= cp.right &&
+                  y >= cp.top  && y <= cp.bottom;
+  if (inPanel) return;
+  dragging = true; prevX = x; prevY = y; velY = 0;
+  totalDragDist = 0;
+}
+function onPointerMove(e) {
+  if (!dragging) return;
+  const x = e.touches ? e.touches[0].clientX : e.clientX;
+  const y = e.touches ? e.touches[0].clientY : e.clientY;
+  const dx = x - prevX;
+  const dy = y - prevY;
+  rotY += dx * 0.007;
+  rotX += dy * 0.007;
+  rotX = Math.max(-1.5, Math.min(1.5, rotX));
+  prevX = x; prevY = y;
+  totalDragDist += Math.abs(dx) + Math.abs(dy);
+}
+function onPointerUp() {
+  if (dragging) {
+    velY = 0.0025;
+    if (totalDragDist < 5) {
+      toggleListen(); // Tap/touch the 3D structure to command!
+    }
+  }
+  dragging = false;
+}
+
+stage.addEventListener('mousedown', onPointerDown);
+window.addEventListener('mousemove', onPointerMove);
+window.addEventListener('mouseup', onPointerUp);
+stage.addEventListener('touchstart', e => { e.preventDefault(); onPointerDown(e); }, {passive:false});
+window.addEventListener('touchmove', e => { e.preventDefault(); onPointerMove(e); }, {passive:false});
+window.addEventListener('touchend', onPointerUp);
+
+const rn = (a, b) => a + Math.random() * (b - a);
+const rv = () => Math.random();
+
+function initGL() {
+  if (typeof THREE === 'undefined') { fallback(); return; }
+
+  scene  = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 600);
+  camera.position.z = 80;
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setClearColor(0x000000);
+  stage.appendChild(renderer.domElement);
+
+  group = new THREE.Group();
+  scene.add(group);
+
+  const R = 24; // sphere radius
+
+  /* ── PARTICLE LAYERS ──────────────────────────────────────── */
+
+  // 1. Thin SHELL — particles scattered on the sphere surface
+  //    Gives the "glowing irregular orb" look from the reference
+  const shellCount  = 55000;
+  const shellPos    = new Float32Array(shellCount * 3);
+  const shellRnd    = new Float32Array(shellCount);
+  for (let i = 0; i < shellCount; i++) {
+    const u = rv(), v = rv();
+    const th = u * Math.PI * 2;
+    const ph = Math.acos(2 * v - 1);
+    // Shell + thin band: 92%-100% of R, plus random scatter
+    const r  = R * (0.88 + Math.pow(rv(), 3) * 0.14);
+    shellPos[i*3]   = r * Math.sin(ph) * Math.cos(th);
+    shellPos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
+    shellPos[i*3+2] = r * Math.cos(ph);
+    shellRnd[i] = rv();
+  }
+  const shellGeo = new THREE.BufferGeometry();
+  shellGeo.setAttribute('position', new THREE.BufferAttribute(shellPos, 3));
+  shellGeo.setAttribute('aRnd',     new THREE.BufferAttribute(shellRnd, 1));
+
+  // 2. VOLUME particles — sparse interior for depth feel
+  const volCount = 20000;
+  const volPos   = new Float32Array(volCount * 3);
+  const volRnd   = new Float32Array(volCount);
+  for (let i = 0; i < volCount; i++) {
+    const u = rv(), v = rv();
+    const th = u * Math.PI * 2;
+    const ph = Math.acos(2 * v - 1);
+    const r  = Math.pow(rv(), 2.0) * R * 0.85;
+    volPos[i*3]   = r * Math.sin(ph) * Math.cos(th);
+    volPos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
+    volPos[i*3+2] = r * Math.cos(ph);
+    volRnd[i] = rv();
+  }
+  const volGeo = new THREE.BufferGeometry();
+  volGeo.setAttribute('position', new THREE.BufferAttribute(volPos, 3));
+  volGeo.setAttribute('aRnd',     new THREE.BufferAttribute(volRnd, 1));
+
+  // 3. CORE glow — dense bright nucleus
+  const coreCount = 6000;
+  const corePos   = new Float32Array(coreCount * 3);
+  for (let i = 0; i < coreCount; i++) {
+    const u = rv(), v = rv();
+    const th = u * Math.PI * 2;
+    const ph = Math.acos(2 * v - 1);
+    const r  = Math.pow(rv(), 2.5) * 5.0;
+    corePos[i*3]   = r * Math.sin(ph) * Math.cos(th);
+    corePos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
+    corePos[i*3+2] = r * Math.cos(ph);
+  }
+  const coreGeo = new THREE.BufferGeometry();
+  coreGeo.setAttribute('position', new THREE.BufferAttribute(corePos, 3));
+
+  /* ── SHARED VERTEX SHADER with organic noise turbulence ── */
+  const vert = `
+    uniform float uTime;
+    uniform float uPulse;
+    attribute float aRnd;
+    varying float vD; // normalized depth
+    void main(){
+      vec3 p = position;
+      float spd = 0.15 + uPulse * 0.35;
+      float a = uTime * spd + aRnd * 6.28318;
+      // Organic turbulence — small enough to not break the sphere shape
+      p.x += sin(a + p.y * 0.1) * 0.9;
+      p.y += cos(a - p.z * 0.12) * 0.9;
+      p.z += sin(a + p.x * 0.15) * 0.9;
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = (1.6 * (0.55 + aRnd * 0.65)) * (260.0 / -mv.z);
+      vD = length(p) / 26.0;
+    }
+  `;
+
+  // SHELL material (violet → purple)
+  partMat = new THREE.ShaderMaterial({
+    uniforms: { uTime:{value:0}, uPulse:{value:0} },
+    vertexShader: vert,
+    fragmentShader:`
+      varying float vD;
+      void main(){
+        float d = length(gl_PointCoord - vec2(0.5));
+        if(d > 0.5) discard;
+        float s = pow(1.0 - d*2.0, 2.0);
+        // Purple (#8A2BE2) to Violet (#A855F7) to faint outer
+        vec3 col = mix(vec3(0.54,0.17,0.89), vec3(0.66,0.33,0.97), vD);
+        float alpha = s * mix(0.55, 0.12, vD);
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending
+  });
+
+  // VOLUME material (dimmer)
+  const volMat = new THREE.ShaderMaterial({
+    uniforms: { uTime:{value:0}, uPulse:{value:0} },
+    vertexShader: vert,
+    fragmentShader:`
+      varying float vD;
+      void main(){
+        float d = length(gl_PointCoord - vec2(0.5));
+        if(d > 0.5) discard;
+        float s = pow(1.0 - d*2.0, 2.0);
+        vec3 col = vec3(0.54,0.17,0.89);
+        gl_FragColor = vec4(col, s * 0.08);
+      }
+    `,
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending
+  });
+
+  // CORE material (bright white-violet)
+  const coreMat = new THREE.PointsMaterial({
+    color: 0xf5f3ff, size: 0.28, transparent:true, opacity:0.7,
+    blending:THREE.AdditiveBlending, depthWrite:false
+  });
+
+  group.add(new THREE.Points(shellGeo, partMat));
+  group.add(new THREE.Points(volGeo,   volMat));
+  group.add(new THREE.Points(coreGeo,  coreMat));
+
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  // Store extra mats for uTime updates
+  group.userData.mats = [partMat, volMat];
+  animate();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.012;
+
+  let pulse = 0;
+  let targetScale = 1.0;
+  let tx = 0, ty = 0, tz = 0;
+
+  if (sysState==='LISTENING') {
+    pulse = 1.0;
+    targetScale = 1.08;
+  }
+  else if (sysState==='THINKING') {
+    pulse = 0.8 + Math.sin(t*22)*0.2;
+    targetScale = 0.9 + Math.sin(t * 15) * 0.12; // breathing scale
+    // float left-right, up-down, and inside-outside (z axis)
+    tx = Math.sin(t * 7) * 5.0;
+    ty = Math.cos(t * 9) * 4.0;
+    tz = Math.sin(t * 5) * 14.0;
+  }
+  else if (sysState==='SPEAKING') {
+    pulse = 0.55 + Math.sin(t*10)*0.3;
+    targetScale = 1.0 + Math.sin(t * 8) * 0.05;
+  }
+
+  group.userData.mats.forEach(m => {
+    m.uniforms.uTime.value  = t;
+    m.uniforms.uPulse.value += (pulse - m.uniforms.uPulse.value) * 0.08;
+  });
+
+  // Interpolate position smoothly
+  group.position.x += (tx - group.position.x) * 0.08;
+  group.position.y += (ty - group.position.y) * 0.08;
+  group.position.z += (tz - group.position.z) * 0.08;
+
+  // Interpolate scale smoothly
+  const sc = group.scale.x + (targetScale - group.scale.x) * 0.1;
+  group.scale.set(sc, sc, sc);
+
+  rotY += velY;
+  group.rotation.y = rotY;
+  group.rotation.x = rotX;
+
+  renderer.render(scene, camera);
+}
+
+let isGitHubPagesMode = false;
+
+// Mouse scroll zoom
+window.addEventListener('wheel', e => {
+  if (!camera) return;
+  camera.position.z += e.deltaY * 0.08;
+  camera.position.z = Math.max(20, Math.min(180, camera.position.z));
+}, { passive: true });
+
+// Touch pinch to zoom
+let touchStartDist = 0;
+stage.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    touchStartDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+  }
+}, { passive: true });
+
+stage.addEventListener('touchmove', e => {
+  if (e.touches.length === 2 && touchStartDist > 0) {
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    const factor = dist / touchStartDist;
+    camera.position.z /= (factor + 0.05);
+    camera.position.z = Math.max(20, Math.min(180, camera.position.z));
+    touchStartDist = dist;
+  }
+}, { passive: true });
+
+async function runInitChecks() {
+  initGL();
+  
+  // Show / Hide chat panel listeners
+  const chatPanel = document.getElementById('chat-panel');
+  const showBtn = document.getElementById('show-chat-btn');
+  const hideBtn = document.getElementById('hide-chat-btn');
+  
+  hideBtn.addEventListener('click', () => {
+    chatPanel.style.display = 'none';
+    showBtn.style.display = 'block';
+  });
+  
+  showBtn.addEventListener('click', () => {
+    chatPanel.style.display = 'flex';
+    showBtn.style.display = 'none';
+  });
+
+  // Check if we are running in localhost python mode
+  try {
+    const res = await fetch('/api/settings');
+    if (!res.ok) throw new Error('Offline');
+    isGitHubPagesMode = false;
+    checkOllama();
+    setInterval(checkOllama, 8000);
+  } catch (e) {
+    isGitHubPagesMode = true;
+    const oDot = document.getElementById('ollama-dot');
+    const oTxt = document.getElementById('ollama-txt');
+    oDot.style.background = '#eab308';
+    oDot.style.boxShadow = '0 0 6px #eab308';
+    oTxt.textContent = 'DIRECT OLLAMA';
+    oTxt.style.color = '#eab308';
+    
+    addBub('AERO SYSTEM ONLINE // Running in Direct Ollama / GitHub Pages Fallback Mode. Directly streaming from local Ollama endpoint (http://localhost:11434). System shell commands are sandboxed, Boss!','sys');
+  }
+}
+
+window.onload = runInitChecks;
+
+/* =====================================================================
+   VOICE — Best Jarvis voice selection
+   ===================================================================== */
+let selVoice = null;
+const voiceStatusEl = document.getElementById('voice-status');
+
+function pickVoice() {
+  if (typeof speechSynthesis === 'undefined') return;
+  const vs = speechSynthesis.getVoices();
+  if (!vs.length) return;
+
+  const priorities = [
+    v => v.name === 'Microsoft David Desktop',
+    v => v.name === 'Microsoft Mark Desktop',
+    v => v.name.toLowerCase().includes('david'),
+    v => v.name.toLowerCase().includes('mark') && v.lang.startsWith('en'),
+    v => v.name.toLowerCase().includes('google uk english male'),
+    v => v.name.toLowerCase().includes('daniel') && v.lang.startsWith('en'),
+    v => v.name.toLowerCase().includes('alex'),
+    v => v.name.toLowerCase().includes('fred'),
+    v => v.lang === 'en-GB' && !v.name.toLowerCase().includes('female'),
+    v => v.lang.startsWith('en') && !v.name.toLowerCase().includes('female'),
+    v => v.lang.startsWith('en'),
+    v => true
+  ];
+
+  for (const test of priorities) {
+    const found = vs.find(test);
+    if (found) { selVoice = found; break; }
+  }
+
+  if (selVoice) {
+    voiceStatusEl.textContent = selVoice.name.toUpperCase();
+    voiceStatusEl.style.color = '#4ade80';
+  } else {
+    voiceStatusEl.textContent = 'NO VOICE FOUND';
+    voiceStatusEl.style.color = '#f87171';
+  }
+}
+
+if (typeof speechSynthesis !== 'undefined') {
+  pickVoice();
+  speechSynthesis.addEventListener('voiceschanged', pickVoice);
+}
+
+let speechQueue = [];
+let isSpeakingText = false;
+
+function stopSpeaking() {
+  if (typeof speechSynthesis !== 'undefined') {
+    speechSynthesis.cancel();
+  }
+  speechQueue = [];
+  isSpeakingText = false;
+}
+
+function queueAndSpeak(sentence) {
+  const clean = sentence.replace(/[*#_`~\[\]>]/g,'').trim();
+  if (!clean) return;
+  speechQueue.push(clean);
+  processSpeechQueue();
+}
+
+function processSpeechQueue() {
+  if (isSpeakingText || speechQueue.length === 0 || typeof speechSynthesis === 'undefined') return;
+  isSpeakingText = true;
+  const txt = speechQueue.shift();
+
+  setState('SPEAKING');
+  waveOn(true);
+
+  const u = new SpeechSynthesisUtterance(txt);
+  if (selVoice) u.voice = selVoice;
+  u.rate  = 1.15;   
+  u.pitch = 0.78;   
+  u.volume = 1.0;
+
+  u.onend = u.onerror = () => {
+    isSpeakingText = false;
+    if (speechQueue.length === 0) {
+      setState('IDLE');
+      waveOn(false);
+    } else {
+      processSpeechQueue();
+    }
+  };
+  speechSynthesis.speak(u);
+}
+
+/* =====================================================================
+   SPEECH RECOGNITION
+   ===================================================================== */
+let listening = false;
+const micBtn = document.getElementById('mic');
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recog = null;
+
+if (SR) {
+  recog = new SR();
+  recog.continuous = false; recog.interimResults = false; recog.lang = 'en-US';
+  recog.onstart  = () => { listening=true;  setState('LISTENING'); micBtn.classList.add('on'); };
+  recog.onend    = () => { 
+    listening=false; 
+    micBtn.classList.remove('on'); 
+    if (sysState === 'LISTENING') {
+      setState('IDLE');
+    }
+  };
+  recog.onerror  = () => { 
+    listening=false; 
+    micBtn.classList.remove('on'); 
+    if (sysState === 'LISTENING') {
+      setState('IDLE');
+    }
+  };
+  recog.onresult = e  => { const tx=e.results[0][0].transcript; addBub(tx,'user'); sendMsg(tx); };
+}
+
+function toggleListen() {
+  if (!recog) { addBub('Speech Recognition not supported in this browser.','sys'); return; }
+  if (listening) recog.stop();
+  else { stopSpeaking(); recog.start(); }
+}
+
+micBtn.addEventListener('click',  e => { e.stopPropagation(); toggleListen(); });
+micBtn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); toggleListen(); });
+document.body.addEventListener('keydown', e => {
+  if (e.key===' ' && document.activeElement !== document.getElementById('txt')) {
+    e.preventDefault(); toggleListen();
+  }
+});
+
+/* =====================================================================
+   CHAT
+   ===================================================================== */
+const logEl  = document.getElementById('log');
+const txtEl  = document.getElementById('txt');
+const sendEl = document.getElementById('send');
+
+function addBub(text, who) {
+  logEl.querySelectorAll('.think').forEach(el => el.remove());
+  const d = document.createElement('div');
+  d.className = 'bub ' + who;
+  d.innerHTML = String(text).replace(/</g,'&lt;').replace(/\n/g,'<br>');
+  logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+}
+function addThink() {
+  logEl.querySelectorAll('.think').forEach(el => el.remove());
+  const d = document.createElement('div'); d.className='think';
+  d.innerHTML='<i></i><i></i><i></i>';
+  logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function sendMsg(msg) {
+  if (!msg.trim()) return;
+  setState('THINKING'); addThink();
+  stopSpeaking();
+  try {
+    let response;
+    let isDirectOllama = isGitHubPagesMode;
+    
+    if (isDirectOllama) {
+      response = await fetch('http://localhost:11434/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'llama3',
+          messages: [
+            { 
+              role: 'system', 
+              content: "You are AERO, a Jarvis-like AI assistant running on the user's local machine. Speak like J.A.R.V.I.S. from Iron Man — calm, composed, slightly witty. You MUST address the user as 'BOSS' (in all capitals or capitalized) in every single reply. Be extremely concise. 1-2 sentences max. Never use markdown, code blocks, or stars." 
+            },
+            { role: 'user', content: msg }
+          ],
+          stream: true
+        })
+      });
+    } else {
+      response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg })
+      });
+    }
+    
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+
+    logEl.querySelectorAll('.think').forEach(el=>el.remove());
+    addBub('', 'ai');
+    const bubs = logEl.querySelectorAll('.bub.ai');
+    const aiBub = bubs[bubs.length - 1];
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullText = '';
+    let spokenSentenceCount = 0;
+    const sentenceRegex = /[^.!?]+[.!?]+/g;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); 
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          let chunkText = "";
+          const parsed = JSON.parse(line);
+          if (isDirectOllama) {
+            chunkText = parsed.message?.content || "";
+          } else {
+            chunkText = parsed.text || "";
+          }
+          
+          if (chunkText) {
+            fullText += chunkText;
+            aiBub.innerHTML = fullText.replace(/</g, '&lt;').replace(/\n/g, '<br>');
+            logEl.scrollTop = logEl.scrollHeight;
+
+            const matches = fullText.match(sentenceRegex);
+            if (matches && matches.length > spokenSentenceCount) {
+              for (let i = spokenSentenceCount; i < matches.length; i++) {
+                queueAndSpeak(matches[i]);
+                spokenSentenceCount++;
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Parse stream line error:", e);
+        }
+      }
+    }
+
+    const matches = fullText.match(sentenceRegex);
+    const totalSpoken = matches ? matches.join('') : '';
+    const remaining = fullText.substring(totalSpoken.length);
+    if (remaining.trim()) {
+      queueAndSpeak(remaining);
+    }
+  } catch(e) {
+    logEl.querySelectorAll('.think').forEach(el=>el.remove());
+    if (isGitHubPagesMode) {
+      addBub('Connection error: ' + e.message + '. Make sure local Ollama is running and CORS is enabled (set environment variable OLLAMA_ORIGINS="*" and restart Ollama), Boss!', 'sys');
+    } else {
+      addBub('Connection error: ' + e.message, 'sys');
+    }
+    setState('IDLE');
+  }
+}
+
+sendEl.addEventListener('click', () => {
+  const v = txtEl.value.trim(); if(!v) return;
+  addBub(v,'user'); sendMsg(v); txtEl.value='';
+});
+txtEl.addEventListener('keydown', e => { if(e.key==='Enter') sendEl.click(); });
+
+function sendQuick(cmd) {
+  document.getElementById('cmd-drawer').classList.remove('open');
+  addBub(cmd,'user'); sendMsg(cmd);
+}
+function toggleDrawer() {
+  document.getElementById('cmd-drawer').classList.toggle('open');
+}
+
+/* =====================================================================
+   STATE + WAVES
+   ===================================================================== */
+const stateLbl = document.getElementById('state-lbl');
+const waveBars = document.querySelectorAll('.wb');
+function setState(s) {
+  sysState = s; stateLbl.textContent = s;
+  const m={IDLE:'#d946ef',LISTENING:'#f472b6',THINKING:'#67e8f9',SPEAKING:'#a855f7'};
+  stateLbl.style.color = m[s]||'#d946ef';
+}
+let waveIv = null;
+function waveOn(on) {
+  if (waveIv) clearInterval(waveIv);
+  if (on) {
+    waveIv = setInterval(()=>waveBars.forEach(b=>{
+      b.style.height=(3+Math.random()*16)+'px';
+      b.style.background='#a855f7';b.style.boxShadow='0 0 5px #a855f7';
+    }), 90);
+  } else {
+    waveBars.forEach(b=>{b.style.height='3px';b.style.background='#8a2be2';b.style.boxShadow='0 0 3px #8a2be2';});
+  }
+}
+setInterval(()=>{ document.getElementById('clock').textContent=new Date().toTimeString().slice(0,8); }, 1000);
+
+/* =====================================================================
+   OLLAMA CHECK
+   ===================================================================== */
+const oDot = document.getElementById('ollama-dot');
+const oTxt = document.getElementById('ollama-txt');
+async function checkOllama() {
+  try {
+    const d = await (await fetch('/api/ollama-check')).json();
+    if (d.alive) {
+      oDot.style.background='#4ade80'; oDot.style.boxShadow='0 0 6px #4ade80';
+      oTxt.textContent='ONLINE'; oTxt.style.color='#4ade80';
+    } else {
+      oDot.style.background='#f87171'; oDot.style.boxShadow='0 0 6px #f87171';
+      oTxt.textContent='OFFLINE'; oTxt.style.color='#f87171';
+    }
+  } catch {
+    oDot.style.background='#f87171'; oTxt.textContent='ERROR'; oTxt.style.color='#f87171';
+  }
+}
+checkOllama(); setInterval(checkOllama, 8000);
+</script>
+</body>
+</html>
