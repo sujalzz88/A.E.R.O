@@ -1,0 +1,156 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap');
+
+@theme {
+  --color-aero-cyan: #22d3ee;
+  --color-aero-cyan-light: #67e8f9;
+  --color-aero-cyan-dark: #06b6d4;
+  --color-aero-purple: #a78bfa;
+  --color-aero-purple-light: #c4b5fd;
+  --color-aero-purple-dark: #8b5cf6;
+  --color-aero-indigo: #312e81;
+  --color-aero-indigo-dark: #1e1b4b;
+  --color-aero-success: #10b981;
+  --color-aero-warning: #f59e0b;
+  --color-aero-error: #ef4444;
+  --color-aero-bg-deep: #030712;
+  --color-aero-bg-dark: #050a14;
+  --color-aero-bg-medium: #0a0f1e;
+  --color-aero-text: #f8fafc;
+  --color-aero-text-muted: #94a3b8;
+  --color-aero-text-dim: #475569;
+
+  --font-heading: 'Orbitron', sans-serif;
+  --font-ui: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+/* ── GLOBAL RESET ── */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-aero-bg-deep);
+  font-family: var(--font-ui);
+  color: var(--color-aero-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar {
+  width: 3px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(34, 211, 238, 0.15);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 211, 238, 0.3);
+}
+
+/* ── HOLOGRAPHIC TEXT UTILITY ── */
+.holo-text {
+  text-shadow:
+    0 0 6px rgba(34, 211, 238, 0.15),
+    0 0 20px rgba(34, 211, 238, 0.06),
+    0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.holo-text-purple {
+  text-shadow:
+    0 0 6px rgba(167, 139, 250, 0.2),
+    0 0 20px rgba(167, 139, 250, 0.08),
+    0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.holo-glow {
+  filter: drop-shadow(0 0 4px rgba(34, 211, 238, 0.2));
+}
+
+/* ── HOLOGRAPHIC DIVIDER ── */
+.holo-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(34, 211, 238, 0.15) 20%,
+    rgba(167, 139, 250, 0.12) 50%,
+    rgba(34, 211, 238, 0.15) 80%,
+    transparent 100%
+  );
+  border: none;
+}
+
+/* ── GLASS PANEL (minimal) ── */
+.glass-panel {
+  background: rgba(5, 10, 20, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(30px) saturate(180%);
+  border-radius: 12px;
+}
+
+/* ── FLOATING INPUT ── */
+.aero-input {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--color-aero-text);
+  font-family: var(--font-ui);
+  outline: none;
+  transition: all 0.2s ease;
+}
+.aero-input:focus {
+  border-color: rgba(34, 211, 238, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.06);
+}
+
+/* ── AERO BUTTON ── */
+.aero-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--color-aero-text-muted);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  transition: all 0.25s ease;
+}
+.aero-btn:hover {
+  color: var(--color-aero-cyan);
+  border-color: rgba(34, 211, 238, 0.2);
+  text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
+}
+
+/* ── SCANLINE OVERLAY ── */
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+/* ── BREATHING GLOW ── */
+@keyframes breathe {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* ── PULSE DOT ── */
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 4px currentColor; }
+  50% { box-shadow: 0 0 10px currentColor, 0 0 20px currentColor; }
+}
+
+/* ── SELECTION ── */
+::selection {
+  background: rgba(34, 211, 238, 0.2);
+  color: #fff;
+}
